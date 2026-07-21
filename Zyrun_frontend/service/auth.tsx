@@ -8,6 +8,7 @@ import React, {
 import * as SecureStore from "expo-secure-store";
 import { authAPI } from "./api";
 import { googleAuthService } from "./googleAuth";
+import "./googleAuth"; // Ensure GoogleAuthService is initialized
 
 interface User {
   id: number;

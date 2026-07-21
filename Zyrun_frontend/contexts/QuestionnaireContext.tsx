@@ -12,7 +12,7 @@ import {
   Answer,
   QuestionnaireState,
 } from "../service/questionnaire/questionnaireService";
- 
+
 interface QuestionnaireContextType {
   questions: Question[];
   currentQuestionIndex: number;
@@ -21,7 +21,7 @@ interface QuestionnaireContextType {
   error: string | null;
   isComplete: boolean;
   progress: number;
- 
+  
   loadQuestions: () => Promise<void>;
   answerQuestion: (questionId: string, value: any) => void;
   goToNext: () => void;
@@ -29,12 +29,13 @@ interface QuestionnaireContextType {
   submitAnswers: () => Promise<void>;
   resetQuestionnaire: () => void;
   setCurrentQuestionIndex: (index: number) => void;
+  setAnswers: (answers: Answer[]) => void; // ✅ ADD THIS
 }
- 
+
 const QuestionnaireContext = createContext<QuestionnaireContextType | undefined>(
   undefined
 );
- 
+
 export function QuestionnaireProvider({ children }: { children: ReactNode }) {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -43,10 +44,10 @@ export function QuestionnaireProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [isComplete, setIsComplete] = useState(false);
   const { user, isLoading: authLoading } = useAuth();
- 
+
   useEffect(() => {
     if (authLoading) return;
- 
+
     if (!user) {
       setQuestions([]);
       setAnswers([]);
@@ -55,11 +56,11 @@ export function QuestionnaireProvider({ children }: { children: ReactNode }) {
       setError(null);
       return;
     }
- 
+
     loadQuestions();
     loadSavedProgress();
   }, [authLoading, user?.id]);
- 
+
   const loadSavedProgress = async () => {
     try {
       const saved = await questionnaireService.loadProgress();
@@ -72,7 +73,7 @@ export function QuestionnaireProvider({ children }: { children: ReactNode }) {
       console.error("Error loading progress:", error);
     }
   };
- 
+
   const loadQuestions = async () => {
     try {
       setIsLoading(true);
@@ -86,7 +87,7 @@ export function QuestionnaireProvider({ children }: { children: ReactNode }) {
       console.error("Error loading questions:", error);
     }
   };
- 
+
   const saveProgress = async () => {
     try {
       const state: QuestionnaireState = {
@@ -100,7 +101,7 @@ export function QuestionnaireProvider({ children }: { children: ReactNode }) {
       console.error("Error saving progress:", error);
     }
   };
- 
+
   const answerQuestion = (questionId: string, value: any) => {
     const existingIndex = answers.findIndex((a) => a.questionId === questionId);
    
@@ -115,21 +116,21 @@ export function QuestionnaireProvider({ children }: { children: ReactNode }) {
     setAnswers(newAnswers);
     saveProgress();
   };
- 
+
   const goToNext = () => {
     if (currentQuestionIndex < questions.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
       saveProgress();
     }
   };
- 
+
   const goToPrevious = () => {
     if (currentQuestionIndex > 0) {
       setCurrentQuestionIndex(currentQuestionIndex - 1);
       saveProgress();
     }
   };
- 
+
   const submitAnswers = async () => {
     try {
       setIsLoading(true);
@@ -144,19 +145,19 @@ export function QuestionnaireProvider({ children }: { children: ReactNode }) {
       throw error;
     }
   };
- 
+
   const resetQuestionnaire = () => {
     setCurrentQuestionIndex(0);
     setAnswers([]);
     setIsComplete(false);
     questionnaireService.clearProgress();
   };
- 
+
   const progress =
     questions.length > 0
       ? Math.round(((currentQuestionIndex + 1) / questions.length) * 100)
       : 0;
- 
+
   return (
     <QuestionnaireContext.Provider
       value={{
@@ -174,13 +175,14 @@ export function QuestionnaireProvider({ children }: { children: ReactNode }) {
         submitAnswers,
         resetQuestionnaire,
         setCurrentQuestionIndex,
+        setAnswers, // ✅ ADD THIS
       }}
     >
       {children}
     </QuestionnaireContext.Provider>
   );
 }
- 
+
 export const useQuestionnaire = () => {
   const context = useContext(QuestionnaireContext);
   if (!context) {
@@ -190,4 +192,3 @@ export const useQuestionnaire = () => {
   }
   return context;
 };
- 

@@ -17,6 +17,7 @@ import DateTimePicker, { DateTimePickerAndroid } from "@react-native-community/d
 import { AppInput } from "../../../components/common/AppInput";
 import { PrimaryButton } from "../../../components/common/PrimaryButton";
 import { Colors, Spacing, Typography, BorderRadius } from "../../../constants/theme";
+import "../../../service/auth"; // Ensure auth service is imported for context
 
 interface PickerItem {
   label: string;
