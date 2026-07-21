@@ -16,14 +16,14 @@ const API_BASE_URL = (() => {
     if (Constants.isDevice === false) {
       return "http://10.0.2.2:8000/api/v1/auth";
     }
-    return "http://192.168.88.7:8000/api/v1/auth";
+    return "http://192.168.88.13:8000/api/v1/auth";
   }
 
   if (Platform.OS === "web") {
     return "http://localhost:8000/api/v1/auth";
   }
 
-  return "http://192.168.88.7:8000/api/v1/auth";
+  return "http://192.168.88.13:8000/api/v1/auth";
 })();
 
 console.log("API_BASE_URL", API_BASE_URL);

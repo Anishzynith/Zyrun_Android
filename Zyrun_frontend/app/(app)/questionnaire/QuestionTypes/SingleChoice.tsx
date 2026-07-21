@@ -13,32 +13,45 @@ const SingleChoice: React.FC<SingleChoiceProps> = ({
   selectedValue,
   onSelect,
 }) => {
+  // Handle option selection
+  const handleSelect = (value: string) => {
+    console.log("SingleChoice - Option selected:", value);
+    console.log("SingleChoice - Current selectedValue:", selectedValue);
+    if (onSelect) {
+      onSelect(value);
+    }
+  };
+
   return (
     <View style={styles.container}>
-      {options.map((option) => (
-        <TouchableOpacity
-          key={option.id}
-          style={[
-            styles.option,
-            selectedValue === option.value && styles.selectedOption,
-          ]}
-          onPress={() => onSelect(option.value)}
-        >
-          <View style={styles.radioCircle}>
-            {selectedValue === option.value && (
-              <View style={styles.radioSelected} />
-            )}
-          </View>
-          <Text
+      {options.map((option) => {
+        const isSelected = selectedValue === option.value;
+        console.log(`SingleChoice - Option ${option.value}: isSelected=${isSelected}`);
+        
+        return (
+          <TouchableOpacity
+            key={option.id}
             style={[
-              styles.optionText,
-              selectedValue === option.value && styles.selectedText,
+              styles.option,
+              isSelected && styles.selectedOption,
             ]}
+            onPress={() => handleSelect(option.value)}
+            activeOpacity={0.7}
           >
-            {option.label}
-          </Text>
-        </TouchableOpacity>
-      ))}
+            <View style={[styles.radioCircle, isSelected && styles.radioCircleSelected]}>
+              {isSelected && <View style={styles.radioSelected} />}
+            </View>
+            <Text
+              style={[
+                styles.optionText,
+                isSelected && styles.selectedText,
+              ]}
+            >
+              {option.label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
     </View>
   );
 };
@@ -57,24 +70,27 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
   },
   selectedOption: {
-    backgroundColor: "#e8e6ff",
-    borderColor: "#6C63FF",
+    backgroundColor: "#e8f5e9",
+    borderColor: "#34C759",
   },
   radioCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     borderWidth: 2,
     borderColor: "#666",
     marginRight: 12,
     justifyContent: "center",
     alignItems: "center",
   },
+  radioCircleSelected: {
+    borderColor: "#34C759",
+  },
   radioSelected: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: "#6C63FF",
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#34C759",
   },
   optionText: {
     fontSize: 16,
@@ -82,7 +98,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   selectedText: {
-    color: "#6C63FF",
+    color: "#2E7D32",
     fontWeight: "600",
   },
 });

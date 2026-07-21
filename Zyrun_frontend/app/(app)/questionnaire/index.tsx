@@ -12,7 +12,7 @@ import {
 import { useQuestionnaire } from "../../../contexts/QuestionnaireContext";
 import { router } from "expo-router";
 import SingleChoice from "./QuestionTypes/SingleChoice";
- 
+
 export default function QuestionnaireScreen() {
   const {
     questions,
@@ -28,10 +28,14 @@ export default function QuestionnaireScreen() {
     progress,
     loadQuestions,
     setCurrentQuestionIndex,
+    setAnswers,
   } = useQuestionnaire();
- 
+
   const [calculatedPace, setCalculatedPace] = useState("");
- 
+  const [isBeginner, setIsBeginner] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   useEffect(() => {
     console.log("===== DEBUG: Current State =====");
     console.log("Current Question ID:", questions[currentQuestionIndex]?.id);
@@ -39,26 +43,44 @@ export default function QuestionnaireScreen() {
     console.log("All Questions:", questions.map(q => q.id));
     console.log("Answers:", answers.map(a => ({ id: a.questionId, value: a.value })));
     console.log("================================");
-   
-    // Check if q1 is answered with "no" and auto-submit
+
     const q1Answer = answers.find((a) => a.questionId === "q1");
     if (q1Answer?.value === "no") {
-      console.log("User selected 'No' to running before. Auto-submitting...");
+     
+      setIsBeginner(true);
       handleAutoSubmit();
     }
-  }, [answers, currentQuestionIndex]);
- 
+
+    const q4Answer = answers.find((a) => a.questionId === "q4");
+    if (q4Answer?.value === "no" && currentQuestion?.id === "q4" && !isNavigating) {
+      console.log("q4 = 'no', automatically navigating to q8...");
+      setIsNavigating(true);
+      setTimeout(() => {
+        const q8Index = questions.findIndex((q) => q.id === "q8");
+        if (q8Index >= 0) {
+          setCurrentQuestionIndex(q8Index);
+          setIsNavigating(false);
+        }
+      }, 100);
+    }
+
+    if (isComplete && !isSubmitting) {
+     
+      setTimeout(() => {
+        router.replace("/calender");
+      }, 500);
+    }
+  }, [answers, currentQuestionIndex, isComplete]);
+
   // Calculate pace when q2 and q3 are answered
   useEffect(() => {
     const distanceAnswer = answers.find((a) => a.questionId === "q2");
     const timeAnswer = answers.find((a) => a.questionId === "q3");
-   
-    console.log("Pace Calculation - Distance:", distanceAnswer?.value, "Time:", timeAnswer?.value);
-   
+
     if (distanceAnswer?.value && timeAnswer?.value) {
       const dist = parseFloat(distanceAnswer.value);
       const timeInMinutes = parseFloat(timeAnswer.value);
-     
+
       if (dist > 0 && timeInMinutes > 0) {
         const pace = timeInMinutes / dist;
         const minutes = Math.floor(pace);
@@ -73,91 +95,92 @@ export default function QuestionnaireScreen() {
       setCalculatedPace("");
     }
   }, [answers]);
- 
+
   const currentQuestion = questions[currentQuestionIndex];
- 
+
   const getVisibleQuestionIds = () => {
     const q1Answer = answers.find((a) => a.questionId === "q1")?.value;
- 
+
     if (q1Answer !== "yes") {
       return ["q1"];
     }
- 
+
     const q4Answer = answers.find((a) => a.questionId === "q4")?.value;
     const baseFlow = ["q1", "q2", "q3", "q4"];
- 
+
     if (q4Answer === "yes") {
       return [...baseFlow, "q5", "q6", "q7", "q8"];
     }
- 
+
     return [...baseFlow, "q8"];
   };
- 
+
   const getVisibleQuestions = () => {
     const visibleQuestionIds = getVisibleQuestionIds();
     return questions.filter((q) => visibleQuestionIds.includes(q.id));
   };
- 
+
   const moveToQuestionById = (questionId: string) => {
     const targetIndex = questions.findIndex((q) => q.id === questionId);
     if (targetIndex >= 0) {
       setCurrentQuestionIndex(targetIndex);
     }
   };
- 
+
   const moveToNextVisibleQuestion = () => {
     const visibleQuestionIds = getVisibleQuestionIds();
     const currentVisibleIndex = visibleQuestionIds.indexOf(currentQuestion?.id || "");
- 
+
     if (currentVisibleIndex >= 0 && currentVisibleIndex < visibleQuestionIds.length - 1) {
       moveToQuestionById(visibleQuestionIds[currentVisibleIndex + 1]);
       return true;
     }
- 
+
     return false;
   };
- 
+
   const moveToPreviousVisibleQuestion = () => {
     const visibleQuestionIds = getVisibleQuestionIds();
     const currentVisibleIndex = visibleQuestionIds.indexOf(currentQuestion?.id || "");
- 
+
     if (currentVisibleIndex > 0) {
       moveToQuestionById(visibleQuestionIds[currentVisibleIndex - 1]);
       return true;
     }
- 
+
     return false;
   };
- 
+
   const hasMeaningfulAnswer = (value: any) => {
     if (value === null || value === undefined) return false;
     if (typeof value === "string") return value.trim() !== "";
     if (Array.isArray(value)) return value.length > 0;
+    if (typeof value === "boolean") return true;
+    if (typeof value === "number") return true;
     return true;
   };
- 
+
   const getStoredAnswer = (questionId?: string) => {
     if (!questionId) return undefined;
     return answers.find((a) => a.questionId === questionId)?.value;
   };
- 
+
   const hasAnsweredQuestion = (questionId?: string) => {
     return hasMeaningfulAnswer(getStoredAnswer(questionId));
   };
- 
+
   // Auto-submit when "No" is selected for q1
   const handleAutoSubmit = async () => {
     try {
       Alert.alert(
         "Thank You!",
-        "You've selected that you haven't run before. We've submitted your response.",
+        "You've selected that you haven't run before. We'll create a beginner 5K plan for you.",
         [
           {
             text: "Continue",
             onPress: async () => {
               try {
                 await submitAnswers();
-                router.replace("/(app)/calender");
               } catch (error) {
                 Alert.alert("Error", "Failed to submit. Please try again.");
               }
@@ -170,52 +193,89 @@ export default function QuestionnaireScreen() {
       Alert.alert("Error", "Something went wrong. Please try again.");
     }
   };
- 
+
   // Check if we're on the running stats page (Step 1)
   const isRunningStatsPage = () => {
     const currentId = currentQuestion?.id;
     return currentId === "q2" || currentId === "q3";
   };
- 
+
   // Check if we're on the event registration page (Step 2 - q4 only)
   const isEventRegistrationPage = () => {
     return currentQuestion?.id === "q4";
   };
- 
+
   // Check if we're on the event details page (Step 2 - q5, q6, q7)
   const isEventDetailsPage = () => {
     return currentQuestion?.id === "q5" || currentQuestion?.id === "q6" || currentQuestion?.id === "q7";
   };
- 
+
   // Check if we're on the final page (q8)
   const isFinalPage = () => {
     return currentQuestion?.id === "q8";
   };
- 
-  // Check if running stats are complete (both q2 and q3 answered)
-  const areRunningStatsComplete = () => {
-    const q2Answer = answers.find((a) => a.questionId === "q2");
-    const q3Answer = answers.find((a) => a.questionId === "q3");
-    return q2Answer?.value && q3Answer?.value && calculatedPace;
+
+  // Handle q4 selection
+  const handleQ4Select = (value: string) => {
+    console.log("===== q4 SELECTED =====");
+    console.log("Selected value:", value);
+    
+    const existingIndex = answers.findIndex((a) => a.questionId === "q4");
+    let newAnswers;
+    
+    if (existingIndex >= 0) {
+      newAnswers = [...answers];
+      newAnswers[existingIndex] = { questionId: "q4", value: value, timestamp: Date.now() };
+    } else {
+      newAnswers = [...answers, { questionId: "q4", value: value, timestamp: Date.now() }];
+    }
+    
+    setAnswers(newAnswers);
+    
+    if (value === "no") {
+      ["q5", "q6", "q7"].forEach((id) => {
+        const idx = newAnswers.findIndex((a: any) => a.questionId === id);
+        if (idx >= 0) {
+          newAnswers[idx] = { questionId: id, value: "", timestamp: Date.now() };
+        } else {
+          newAnswers.push({ questionId: id, value: "", timestamp: Date.now() });
+        }
+      });
+      setAnswers(newAnswers);
+      
+      console.log("Navigating to q8...");
+      const q8Index = questions.findIndex((q) => q.id === "q8");
+      if (q8Index >= 0) {
+        setTimeout(() => {
+          setCurrentQuestionIndex(q8Index);
+        }, 200);
+      }
+    } else if (value === "yes") {
+      setTimeout(() => {
+        console.log("Navigating to q5...");
+        const q5Index = questions.findIndex((q) => q.id === "q5");
+        if (q5Index >= 0) {
+          setCurrentQuestionIndex(q5Index);
+        }
+      }, 200);
+    }
   };
- 
+
   const handleNext = () => {
     console.log("===== HANDLE NEXT CALLED =====");
     console.log("Current Question ID:", currentQuestion?.id);
     console.log("Current Answers:", answers.map(a => ({ id: a.questionId, value: a.value })));
-   
-    // Check if q1 is answered
+
     const q1Answer = answers.find((a) => a.questionId === "q1");
-   
-    // If q1 is "no", auto-submit should handle it
+
     if (q1Answer?.value === "no") {
       console.log("q1 is 'no', returning");
       return;
     }
- 
+
     if (isEventRegistrationPage()) {
       const q4Answer = answers.find((a) => a.questionId === "q4");
- 
+
       if (!q4Answer?.value) {
         Alert.alert(
           "Incomplete",
@@ -224,21 +284,29 @@ export default function QuestionnaireScreen() {
         );
         return;
       }
- 
+
       if (q4Answer.value === "no") {
-        moveToQuestionById("q8");
+        console.log("q4 is 'no', moving to q8");
+        const q8Index = questions.findIndex((q) => q.id === "q8");
+        if (q8Index >= 0) {
+          setCurrentQuestionIndex(q8Index);
+        }
         return;
       }
- 
-      moveToQuestionById("q5");
+
+      console.log("q4 is 'yes', moving to q5");
+      const q5Index = questions.findIndex((q) => q.id === "q5");
+      if (q5Index >= 0) {
+        setCurrentQuestionIndex(q5Index);
+      }
       return;
     }
- 
+
     if (isFinalPage()) {
       handleSubmit();
       return;
     }
- 
+
     if (currentQuestion?.isRequired && !hasAnsweredQuestion(currentQuestion?.id)) {
       Alert.alert(
         "Incomplete",
@@ -247,21 +315,53 @@ export default function QuestionnaireScreen() {
       );
       return;
     }
- 
+
     if (!moveToNextVisibleQuestion()) {
       handleSubmit();
     }
   };
- 
+
   const handleSubmit = async () => {
+    if (isSubmitting) {
+     
+      return;
+    }
+
     const visibleQuestions = getVisibleQuestions();
-    const unansweredRequired = visibleQuestions.filter(
-      (q) => q.isRequired && !hasAnsweredQuestion(q.id)
-    );
- 
+    
+    console.log("========================================");
+    console.log("🔍 VALIDATION START");
     console.log("Visible Questions:", visibleQuestions.map((q) => q.id));
-    console.log("Unanswered Required:", unansweredRequired.map((q) => q.id));
- 
+    console.log("All Answers:", answers.map(a => ({ id: a.questionId, value: a.value })));
+    console.log("========================================");
+    
+    const unansweredRequired = visibleQuestions.filter((q) => {
+      if (!q.isRequired) return false;
+      
+      const answer = answers.find((a) => a.questionId === q.id);
+      const answerValue = answer?.value;
+      
+      if (q.id === "q4") {
+        const isAnswered = answerValue === "yes" || answerValue === "no";
+        console.log(`✅ q4 special check: value=${answerValue}, isAnswered=${isAnswered}`);
+        return !isAnswered;
+      }
+      
+      const hasAnswer = hasMeaningfulAnswer(answerValue);
+      console.log(`Question ${q.id}:`, {
+        isRequired: q.isRequired,
+        hasAnswer: hasAnswer,
+        answerValue: answerValue,
+        isVisible: true
+      });
+      
+      return !hasAnswer;
+    });
+
+    console.log("Unanswered Required:", unansweredRequired.map(q => q.id));
+    console.log("Remaining Count:", unansweredRequired.length);
+    console.log("========================================");
+
     if (unansweredRequired.length > 0) {
       Alert.alert(
         "Incomplete",
@@ -270,7 +370,7 @@ export default function QuestionnaireScreen() {
       );
       return;
     }
- 
+
     Alert.alert(
       "Submit Answers",
       "Are you sure you want to submit your answers?",
@@ -280,14 +380,14 @@ export default function QuestionnaireScreen() {
           text: "Submit",
           onPress: async () => {
             try {
+              setIsSubmitting(true);
+             
               await submitAnswers();
-              Alert.alert(
-                "Success",
-                "Your answers have been submitted successfully!",
-                // ✅ FIX: Navigate to calendar instead of dashboard
-                [{ text: "OK", onPress: () => router.replace("/(app)/calender") }]
-              );
+              
+              setIsSubmitting(false);
             } catch (error) {
+              
+              setIsSubmitting(false);
               Alert.alert("Error", "Failed to submit answers. Please try again.");
             }
           },
@@ -295,24 +395,44 @@ export default function QuestionnaireScreen() {
       ]
     );
   };
- 
+
+  const getStepInfo = () => {
+    const currentId = currentQuestion?.id;
+    
+    if (currentId === "q2" || currentId === "q3") {
+      return { current: 1, total: 3, label: "Running Activity" };
+    }
+    if (currentId === "q4" || currentId === "q5" || currentId === "q6" || currentId === "q7") {
+      return { current: 2, total: 3, label: "Event Registration" };
+    }
+    if (currentId === "q8") {
+      return { current: 3, total: 3, label: "Running Schedule" };
+    }
+    if (currentId === "q1") {
+      return { current: 1, total: 1, label: "Getting Started" };
+    }
+    return { current: 1, total: 3, label: "Questionnaire" };
+  };
+
+  const stepInfo = getStepInfo();
+
   // Render running stats page (q2 and q3 together)
   const renderRunningStatsPage = () => {
     const q2Answer = answers.find((a) => a.questionId === "q2");
     const q3Answer = answers.find((a) => a.questionId === "q3");
     const isComplete = q2Answer?.value && q3Answer?.value && calculatedPace;
- 
+
     return (
       <View style={styles.singleQuestionContainer}>
         <View style={styles.header}>
           <Text style={styles.questionNumber}>
-            Step 1 of 3: Running Activity
+            Step {stepInfo.current} of {stepInfo.total}: {stepInfo.label}
           </Text>
           <Text style={styles.required}>* Required</Text>
         </View>
- 
+
         <Text style={styles.pageTitle}>Recent Running Activity (Last 3 Months)</Text>
- 
+
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Recent long run distance (in km)</Text>
           <RNTextInput
@@ -323,7 +443,7 @@ export default function QuestionnaireScreen() {
             keyboardType="numeric"
           />
         </View>
- 
+
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Recent long run time (in minutes)</Text>
           <RNTextInput
@@ -334,7 +454,7 @@ export default function QuestionnaireScreen() {
             keyboardType="numeric"
           />
         </View>
- 
+
         {calculatedPace ? (
           <View style={styles.paceContainer}>
             <Text style={styles.paceLabel}>Your Calculated Pace:</Text>
@@ -349,7 +469,7 @@ export default function QuestionnaireScreen() {
             </Text>
           </View>
         )}
- 
+
         {isComplete && (
           <View style={styles.successContainer}>
             <Text style={styles.successText}>✓ Running data complete! Click Next to continue.</Text>
@@ -358,7 +478,7 @@ export default function QuestionnaireScreen() {
       </View>
     );
   };
- 
+
   // Render event registration page (q4, q5, q6, q7 together)
   const renderEventRegistrationPage = () => {
     const q4Answer = answers.find((a) => a.questionId === "q4");
@@ -366,18 +486,18 @@ export default function QuestionnaireScreen() {
     const q6Answer = answers.find((a) => a.questionId === "q6");
     const q7Answer = answers.find((a) => a.questionId === "q7");
     const isEventRegistered = q4Answer?.value === "yes";
- 
+
     return (
       <View style={styles.singleQuestionContainer}>
         <View style={styles.header}>
           <Text style={styles.questionNumber}>
-            Step 2 of 3: Event Registration
+            Step {stepInfo.current} of {stepInfo.total}: {stepInfo.label}
           </Text>
           <Text style={styles.required}>* Required</Text>
         </View>
- 
+
         <Text style={styles.pageTitle}>Event Registration Details</Text>
- 
+
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Have you registered for any event?</Text>
           <SingleChoice
@@ -386,40 +506,14 @@ export default function QuestionnaireScreen() {
               { id: "opt2", label: "No", value: "no" }
             ]}
             selectedValue={q4Answer?.value}
-            onSelect={(value: string) => {
-              console.log("q4 selected:", value);
-              answerQuestion("q4", value);
-              // If "No", clear event details and navigate to q8
-              if (value === "no") {
-                answerQuestion("q5", "");
-                answerQuestion("q6", "");
-                answerQuestion("q7", "");
-               
-                setTimeout(() => {
-                  const q8Index = questions.findIndex((q) => q.id === "q8");
-                  if (q8Index >= 0) {
-                    console.log("Skipping to q8 after selecting No");
-                    setCurrentQuestionIndex(q8Index);
-                  }
-                }, 300);
-              } else {
-                // If "Yes", navigate to q5
-                const q5Index = questions.findIndex((q) => q.id === "q5");
-                if (q5Index >= 0) {
-                  setTimeout(() => {
-                    console.log("Moving to q5 after selecting Yes");
-                    setCurrentQuestionIndex(q5Index);
-                  }, 300);
-                }
-              }
-            }}
+            onSelect={handleQ4Select}
           />
         </View>
- 
+
         {isEventRegistered && (
           <>
             <View style={styles.divider} />
- 
+
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Event Name</Text>
               <RNTextInput
@@ -429,7 +523,7 @@ export default function QuestionnaireScreen() {
                 placeholder="Enter the event name (e.g., City Marathon)"
               />
             </View>
- 
+
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Event Distance (in km)</Text>
               <RNTextInput
@@ -440,7 +534,7 @@ export default function QuestionnaireScreen() {
                 keyboardType="numeric"
               />
             </View>
- 
+
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Target Time (in minutes)</Text>
               <RNTextInput
@@ -453,7 +547,7 @@ export default function QuestionnaireScreen() {
             </View>
           </>
         )}
- 
+
         {!isEventRegistered && q4Answer?.value === "no" && (
           <View style={styles.hintContainer}>
             <Text style={styles.hintText}>
@@ -464,22 +558,22 @@ export default function QuestionnaireScreen() {
       </View>
     );
   };
- 
+
   // Render final page (q8)
   const renderFinalPage = () => {
     const q8Answer = answers.find((a) => a.questionId === "q8");
- 
+
     return (
       <View style={styles.singleQuestionContainer}>
         <View style={styles.header}>
           <Text style={styles.questionNumber}>
-            Step 3 of 3: Running Schedule
+            Step {stepInfo.current} of {stepInfo.total}: {stepInfo.label}
           </Text>
           <Text style={styles.required}>* Required</Text>
         </View>
- 
+
         <Text style={styles.pageTitle}>How many days per week do you plan to run?</Text>
- 
+
         <View style={styles.inputGroup}>
           <SingleChoice
             options={[
@@ -495,17 +589,17 @@ export default function QuestionnaireScreen() {
       </View>
     );
   };
- 
+
   // Loading state
   if (isLoading) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color="#34C759" />
         <Text style={styles.loadingText}>Loading questions...</Text>
       </View>
     );
   }
- 
+
   // Error state
   if (error) {
     return (
@@ -520,8 +614,18 @@ export default function QuestionnaireScreen() {
       </View>
     );
   }
- 
-  // Complete state
+
+  // Show loading indicator while submitting
+  if (isSubmitting) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color="#34C759" />
+       
+      </View>
+    );
+  }
+
+  // When isComplete is true, the useEffect will handle navigation
   if (isComplete) {
     return (
       <View style={styles.centerContainer}>
@@ -531,14 +635,14 @@ export default function QuestionnaireScreen() {
         </Text>
         <TouchableOpacity
           style={styles.dashboardButton}
-          onPress={() => router.replace("/(app)/calender")}
+          onPress={() => router.replace("/calender")}
         >
           <Text style={styles.dashboardButtonText}>Go to Calendar</Text>
         </TouchableOpacity>
       </View>
     );
   }
- 
+
   // No questions state
   if (!questions.length || !currentQuestion) {
     return (
@@ -553,7 +657,7 @@ export default function QuestionnaireScreen() {
       </View>
     );
   }
- 
+
   // Determine which page to render
   const renderPage = () => {
     if (isRunningStatsPage()) {
@@ -562,19 +666,41 @@ export default function QuestionnaireScreen() {
       return renderEventRegistrationPage();
     } else if (isFinalPage()) {
       return renderFinalPage();
-    } else {
+    } else if (currentQuestion?.id === "q1") {
       return (
         <View style={styles.singleQuestionContainer}>
           <View style={styles.header}>
             <Text style={styles.questionNumber}>
-              Question {currentQuestionIndex + 1} of {questions.length}
+              Step 1 of 1: Getting Started
             </Text>
             {currentQuestion.isRequired && (
               <Text style={styles.required}>* Required</Text>
             )}
           </View>
           <Text style={styles.questionText}>{currentQuestion.question}</Text>
-         
+
+          {currentQuestion.type === "single" && (
+            <SingleChoice
+              options={currentQuestion.options || []}
+              selectedValue={answers.find((a) => a.questionId === currentQuestion.id)?.value}
+              onSelect={(value: string) => answerQuestion(currentQuestion.id, value)}
+            />
+          )}
+        </View>
+      );
+    } else {
+      return (
+        <View style={styles.singleQuestionContainer}>
+          <View style={styles.header}>
+            <Text style={styles.questionNumber}>
+              Question {currentQuestionIndex + 1}
+            </Text>
+            {currentQuestion.isRequired && (
+              <Text style={styles.required}>* Required</Text>
+            )}
+          </View>
+          <Text style={styles.questionText}>{currentQuestion.question}</Text>
+
           {currentQuestion.type === "single" && (
             <SingleChoice
               options={currentQuestion.options || []}
@@ -586,32 +712,24 @@ export default function QuestionnaireScreen() {
       );
     }
   };
- 
-  // Get page info for progress
-  const getPageInfo = () => {
-    if (isRunningStatsPage()) return { current: 1, total: 3, label: "Running Activity" };
-    if (isEventRegistrationPage() || isEventDetailsPage()) return { current: 2, total: 3, label: "Event Registration" };
-    if (isFinalPage()) return { current: 3, total: 3, label: "Running Schedule" };
-    return { current: 1, total: 3, label: "Questionnaire" };
-  };
- 
-  const pageInfo = getPageInfo();
- 
+
+  const stepInfoForProgress = getStepInfo();
+
   return (
     <View style={styles.container}>
       <View style={styles.progressHeader}>
         <Text style={styles.progressHeaderText}>
-          Step {pageInfo.current} of {pageInfo.total}: {pageInfo.label}
+          Step {stepInfoForProgress.current} of {stepInfoForProgress.total}: {stepInfoForProgress.label}
         </Text>
         <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: `${(pageInfo.current / pageInfo.total) * 100}%` }]} />
+          <View style={[styles.progressFill, { width: `${(stepInfoForProgress.current / stepInfoForProgress.total) * 100}%` }]} />
         </View>
       </View>
- 
+
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         {renderPage()}
       </ScrollView>
- 
+
       <View style={styles.buttonContainer}>
         <TouchableOpacity
           style={[styles.button, styles.prevButton]}
@@ -621,16 +739,23 @@ export default function QuestionnaireScreen() {
           <Text
             style={[
               styles.buttonText,
+              styles.prevButtonText, // ✅ Green text for previous button
               currentQuestionIndex === 0 && styles.disabledText,
             ]}
           >
             Previous
           </Text>
         </TouchableOpacity>
- 
+
         {isFinalPage() ? (
-          <TouchableOpacity style={[styles.button, styles.submitButton]} onPress={handleSubmit}>
-            <Text style={styles.buttonText}>Submit</Text>
+          <TouchableOpacity 
+            style={[styles.button, styles.submitButton]} 
+            onPress={handleSubmit}
+            disabled={isSubmitting}
+          >
+            <Text style={styles.buttonText}>
+              {isSubmitting ? 'Submitting...' : 'Submit'}
+            </Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity style={[styles.button, styles.nextButton]} onPress={handleNext}>
@@ -641,11 +766,11 @@ export default function QuestionnaireScreen() {
     </View>
   );
 }
- 
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: "#F5F7FA",
   },
   scrollContainer: {
     flexGrow: 1,
@@ -656,7 +781,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
-    backgroundColor: "#fff",
+    backgroundColor: "#F5F7FA",
   },
   loadingText: {
     marginTop: 12,
@@ -672,18 +797,18 @@ const styles = StyleSheet.create({
   retryButton: {
     paddingHorizontal: 24,
     paddingVertical: 12,
-    backgroundColor: "#007AFF",
+    backgroundColor: "#34C759",
     borderRadius: 8,
   },
   retryText: {
-    color: "#fff",
+    color: "#1A1A1A",
     fontSize: 16,
     fontWeight: "600",
   },
   completeText: {
     fontSize: 24,
     fontWeight: "700",
-    color: "#4CAF50",
+    color: "#34C759",
     marginBottom: 8,
   },
   completeSubtext: {
@@ -695,36 +820,36 @@ const styles = StyleSheet.create({
   dashboardButton: {
     paddingHorizontal: 32,
     paddingVertical: 14,
-    backgroundColor: "#007AFF",
+    backgroundColor: "#34C759",
     borderRadius: 10,
   },
   dashboardButtonText: {
-    color: "#fff",
+    color: "#1A1A1A",
     fontSize: 16,
     fontWeight: "600",
   },
   progressHeader: {
     paddingHorizontal: 20,
     paddingVertical: 12,
-    backgroundColor: "#f8f9fa",
+    backgroundColor: "#1A1A1A",
     borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
+    borderBottomColor: "#2D2D2D",
   },
   progressHeaderText: {
     fontSize: 14,
-    color: "#666",
+    color: "#34C759",
     marginBottom: 8,
     fontWeight: "500",
   },
   progressBar: {
     height: 4,
-    backgroundColor: "#e0e0e0",
+    backgroundColor: "#2D2D2D",
     borderRadius: 2,
     overflow: "hidden",
   },
   progressFill: {
     height: "100%",
-    backgroundColor: "#007AFF",
+    backgroundColor: "#34C759",
     borderRadius: 2,
   },
   buttonContainer: {
@@ -743,24 +868,37 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   prevButton: {
-    backgroundColor: "#f0f0f0",
+    backgroundColor: "transparent", // ✅ Transparent background for previous button
+    borderWidth: 2,
+    borderColor: "#34C759", // ✅ Green border
   },
   nextButton: {
-    backgroundColor: "#007AFF",
+    backgroundColor: "#34C759",
   },
   submitButton: {
-    backgroundColor: "#4CAF50",
+    backgroundColor: "#34C759",
   },
   buttonText: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#fff",
+    color: "#1A1A1A",
+  },
+  prevButtonText: {
+    color: "#34C759", // ✅ Green text for previous button
   },
   disabledText: {
     color: "#999",
   },
   singleQuestionContainer: {
     padding: 20,
+    backgroundColor: "#FFFFFF",
+    margin: 16,
+    borderRadius: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
   },
   header: {
     flexDirection: "row",
@@ -875,4 +1013,3 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
 });
- 

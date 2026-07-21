@@ -131,10 +131,7 @@ const MOCK_QUESTIONS: Question[] = [
       { id: "opt2", label: "No", value: "no" }
     ],
     isRequired: true,
-    condition: {
-      dependsOn: "q1",
-      value: "yes"
-    }
+   
   },
   {
     id: "q5",
@@ -180,10 +177,7 @@ const MOCK_QUESTIONS: Question[] = [
       { id: "opt4", label: "7 days", value: "7" }
     ],
     isRequired: true,
-    condition: {
-      dependsOn: "q1",
-      value: "yes"
-    }
+   
   },
   {
     id: "q9",

@@ -32,5 +32,6 @@ export const storage = {
     USER: "user",
     QUESTIONNAIRE_PROGRESS: "questionnaire_progress",
     QUESTIONNAIRE_ANSWERS: "questionnaire_answers",
+    TRAINING_PLAN: "training_plan", // ✅ NEW: For saving training plan
   },
 };

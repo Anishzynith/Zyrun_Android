@@ -17,7 +17,7 @@ export class QuestionnaireRepository implements IQuestionRepository {
   }
 
   async getQuestions(): Promise<Question[]> {
-    return await this.service.getQuestions();
+    return (await this.service.getQuestions()) as Question[];
   }
 
   async submitAnswers(answers: Answer[]): Promise<void> {
